@@ -1,10 +1,12 @@
+#!/usr/bin/python3
+from model.base_model import BaseModel
 
 
-class City:
-    def __init__(self, city_name, country, places):
-
+class City(BaseModel):
+    def __init__(self, city_name, country_code, **kwargs):
+        super().__init__(**kwargs)
         self.city_name = city_name
-        self.country = country
+        self.country_code = country_code
         self.places = []
 
     def add_city(self, city):
@@ -13,9 +15,11 @@ class City:
 
 
 
-class Country(City):
-    def __init__(self, country, city_name, places):
+class Country(BaseModel):
+    countries = []
 
-        self.country = country
-        self.city_name = []
-        self.places = []
+    def __init__(self, name, code, **kwargs):
+        super().__init__(**kwargs)
+        self.name
+        self.code = code
+        Country.countries.append(self)
