@@ -1,8 +1,9 @@
 #!/usr/bin/python3
+
 from flask import Flask
 from flask_restx import Api, Resource, fields
-from datetime import datetime
 import uuid
+from datetime import datetime
 
 app = Flask(__name__)
 api = Api(app, doc='/docs')
