@@ -1,286 +1,244 @@
-# api/app.py
-print("Loading app from api/app.py")
+#!/usr/bin/python3
 
-from flask import Flask, jsonify, request
-from model.places import Place
-from model.reviews import Review
-from model.amenities import Amenities
-from model.city_country import City, Country
-from persistence.data_manager import DataManager
-from model.user import User
+from flask import Flask
+from flask_restx import Api, Resource, fields
+import uuid
+from datetime import datetime
+
 
 app = Flask(__name__)
+api = Api(app, doc='/docs')
+
+# Define the namespaces
+place_ns = api.namespace('places', description='Places operations')
+review_ns = api.namespace('reviews', description='Review operations')
+
+# Place model definition
+place_model = api.model('Place', {
+    'id': fields.String(readonly=True, description='The place unique identifier'),
+    'name': fields.String(required=True, description='The name of the place'),
+    'description': fields.String(required=True, description='The description of the place'),
+    'address': fields.String(required=True, description='The address of the place'),
+    'city_id': fields.String(required=True, description='The ID of the city'),
+    'latitude': fields.Float(required=True, description='The latitude of the place'),
+    'longitude': fields.Float(required=True, description='The longitude of the place'),
+    'host_id': fields.String(required=True, description='The ID of the host'),
+    'number_of_rooms': fields.Integer(required=True, description='The number of rooms in the place'),
+    'number_of_bathrooms': fields.Integer(required=True, description='The number of bathrooms in the place'),
+    'price_per_night': fields.Float(required=True, description='The price per night'),
+    'max_guests': fields.Integer(required=True, description='The maximum number of guests'),
+    'amenity_ids': fields.List(fields.String, required=True, description='The list of amenity IDs')
+})
+
+# Review model definition
+review_model = api.model('Review', {
+    'id': fields.String(readonly=True, description='The review unique identifier'),
+    'place_id': fields.String(required=True, description='The ID of the place being reviewed'),
+    'user_id': fields.String(required=True, description='The ID of the user who wrote the review'),
+    'rating': fields.Integer(required=True, description='Rating given by the user (1 to 5)'),
+    'comment': fields.String(required=True, description='Review comment'),
+    'created_at': fields.DateTime(readonly=True, description='Creation timestamp'),
+    'updated_at': fields.DateTime(readonly=True, description='Last update timestamp')
+})
+
+# Mock data manager (to be replaced with actual data handling logic)
+class DataManager:
+    def __init__(self):
+        self.storage = {"Place": {}, "Review": {}, "City": {}, "Amenity": {}, "User": {}}
+
+    def get(self, id, entity):
+        return self.storage.get(entity, {}).get(id)
+
+    def save(self, entity):
+        self.storage[type(entity).__name__].update({entity.id: entity})
+
+    def update(self, entity):
+        self.storage[type(entity).__name__][entity.id] = entity
+
+    def delete(self, id, entity):
+        if id in self.storage.get(entity, {}):
+            del self.storage[entity][id]
+
+    def get_all_reviews_by_place(self, place_id):
+        return [review for review in self.storage.get("Review", {}).values() if review.place_id == place_id]
+
+    def get_all_reviews_by_user(self, user_id):
+        return [review for review in self.storage.get("Review", {}).values() if review.user_id == user_id]
+
 data_manager = DataManager()
 
-# Example route
-@app.route('/')
-def index():
-    return jsonify({"message": "Welcome to the HBnB API!"})
-
-# User endpoints
-@app.route('/users', methods=['POST'])
-def create_user():
-    data = request.get_json()
-    if not data or 'email' not in data or 'password' not in data:
-        return jsonify({"error": "Missing user data"}), 400
-
-    try:
-        new_user = User(email=data['email'], password=data['password'],
-                        first_name=data.get('first_name', ''),
-                        last_name=data.get('last_name', ''))
-        data_manager.save(new_user)
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 409
-
-    return jsonify(new_user.to_dict()), 201
-
-@app.route('/users', methods=['GET'])
-def get_users():
-    users = data_manager.storage.get('User', {}).values()
-    return jsonify([user.to_dict() for user in users]), 200
-
-@app.route('/users/<user_id>', methods=['GET'])
-def get_user(user_id):
-    user = data_manager.get(user_id, 'User')
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-    return jsonify(user.to_dict()), 200
-
-@app.route('/users/<user_id>', methods=['PUT'])
-def update_user(user_id):
-    data = request.get_json()
-    user = data_manager.get(user_id, 'User')
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    user.update_name(first_name=data.get('first_name', user.first_name),
-                     last_name=data.get('last_name', user.last_name))
-    data_manager.save(user)
-    return jsonify(user.to_dict()), 200
-
-@app.route('/users/<user_id>', methods=['DELETE'])
-def delete_user(user_id):
-    user = data_manager.get(user_id, 'User')
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    data_manager.delete(user_id, 'User')
-    return '', 204
-
 # Place endpoints
-@app.route('/places', methods=['POST'])
-def create_place():
-    data = request.get_json()
-    user = data_manager.get(data.get('host_id'), 'User')
-    if not user:
-        return jsonify({"error": "Host not found"}), 404
+@place_ns.route('/')
+class PlaceList(Resource):
+    @place_ns.doc('list_places')
+    @place_ns.marshal_list_with(place_model)
+    def get(self):
+        """List all places"""
+        places = list(data_manager.storage["Place"].values())
+        return places
 
-    place = Place(place_id=data.get('place_id'), name=data.get('name'),
-                  description=data.get('description'), address=data.get('address'),
-                  city=data.get('city'), host=user)
-    data_manager.save(place)
-    return jsonify(place.to_dict()), 201
+    @place_ns.doc('create_place')
+    @place_ns.expect(place_model)
+    @place_ns.marshal_with(place_model, code=201)
+    def post(self):
+        """Create a new place"""
+        data = api.payload
+        required_fields = ["name", "description", "address", "city_id", "latitude", "longitude", "host_id", "number_of_rooms", "number_of_bathrooms", "price_per_night", "max_guests", "amenity_ids"]
+        if not all(field in data for field in required_fields):
+            api.abort(400, "Missing required fields")
 
-@app.route('/places', methods=['GET'])
-def get_places():
-    places = data_manager.storage.get('Place', {}).values()
-    return jsonify([place.to_dict() for place in places]), 200
+        if not isinstance(data["amenity_ids"], list):
+            api.abort(400, "amenity_ids should be a list")
 
-@app.route('/places/<place_id>', methods=['GET'])
-def get_place(place_id):
-    place = data_manager.get(place_id, 'Place')
-    if not place:
-        return jsonify({"error": "Place not found"}), 404
-    return jsonify(place.to_dict()), 200
+        if not (-90 <= data["latitude"] <= 90) or not (-180 <= data["longitude"] <= 180):
+            api.abort(400, "Invalid geographical coordinates")
 
-@app.route('/places/<place_id>', methods=['PUT'])
-def update_place(place_id):
-    data = request.get_json()
-    place = data_manager.get(place_id, 'Place')
-    if not place:
-        return jsonify({"error": "Place not found"}), 404
+        if any(data[field] < 0 for field in ["number_of_rooms", "number_of_bathrooms", "max_guests"]):
+            api.abort(400, "Room, bathroom, and guest capacities must be non-negative integers")
 
-    place.name = data.get('name', place.name)
-    place.description = data.get('description', place.description)
-    place.address = data.get('address', place.address)
-    data_manager.save(place)
-    return jsonify(place.to_dict()), 200
+        if data["price_per_night"] < 0:
+            api.abort(400, "Price per night must be a positive value")
 
-@app.route('/places/<place_id>', methods=['DELETE'])
-def delete_place(place_id):
-    place = data_manager.get(place_id, 'Place')
-    if not place:
-        return jsonify({"error": "Place not found"}), 404
+        if data_manager.get(data["city_id"], "City") is None:
+            api.abort(404, "City not found")
 
-    data_manager.delete(place_id, 'Place')
-    return '', 204
+        for amenity_id in data["amenity_ids"]:
+            if data_manager.get(amenity_id, "Amenity") is None:
+                api.abort(404, f"Amenity {amenity_id} not found")
+
+        place = {
+            'id': str(uuid.uuid4()),
+            'name': data["name"],
+            'description': data["description"],
+            'address': data["address"],
+            'city_id': data["city_id"],
+            'latitude': data["latitude"],
+            'longitude': data["longitude"],
+            'host_id': data["host_id"],
+            'number_of_rooms': data["number_of_rooms"],
+            'number_of_bathrooms': data["number_of_bathrooms"],
+            'price_per_night': data["price_per_night"],
+            'max_guests': data["max_guests"],
+            'amenity_ids': data["amenity_ids"]
+        }
+        data_manager.save(place)
+        return place, 201
+
+@place_ns.route('/<string:place_id>')
+@place_ns.doc(params={'place_id': 'The place unique identifier'})
+class PlaceResource(Resource):
+    @place_ns.doc('get_place')
+    @place_ns.marshal_with(place_model)
+    def get(self, place_id):
+        """Get a place by ID"""
+        place = data_manager.get(place_id, "Place")
+        if place is None:
+            api.abort(404, "Place not found")
+        return place
+
+    @place_ns.doc('update_place')
+    @place_ns.expect(place_model)
+    @place_ns.marshal_with(place_model)
+    def put(self, place_id):
+        """Update a place"""
+        data = api.payload
+        place = data_manager.get(place_id, "Place")
+        if place is None:
+            api.abort(404, "Place not found")
+
+        if "latitude" in data and not (-90 <= data["latitude"] <= 90):
+            api.abort(400, "Invalid latitude")
+        if "longitude" in data and not (-180 <= data["longitude"] <= 180):
+            api.abort(400, "Invalid longitude")
+        if any(field in data and data[field] < 0 for field in ["number_of_rooms", "number_of_bathrooms", "max_guests"]):
+            api.abort(400, "Room, bathroom, and guest capacities must be non-negative integers")
+        if "price_per_night" in data and data["price_per_night"] < 0:
+            api.abort(400, "Price per night must be a positive value")
+        if "city_id" in data and data_manager.get(data["city_id"], "City") is None:
+            api.abort(404, "City not found")
+        if "amenity_ids" in data:
+            if not isinstance(data["amenity_ids"], list):
+                api.abort(400, "amenity_ids should be a list")
+            for amenity_id in data["amenity_ids"]:
+                if data_manager.get(amenity_id, "Amenity") is None:
+                    api.abort(404, f"Amenity {amenity_id} not found")
+
+        place.update({
+            'name': data.get("name", place['name']),
+            'description': data.get("description", place['description']),
+            'address': data.get("address", place['address']),
+            'city_id': data.get("city_id", place['city_id']),
+            'latitude': data.get("latitude", place['latitude']),
+            'longitude': data.get("longitude", place['longitude']),
+            'host_id': data.get("host_id", place['host_id']),
+            'number_of_rooms': data.get("number_of_rooms", place['number_of_rooms']),
+            'number_of_bathrooms': data.get("number_of_bathrooms", place['number_of_bathrooms']),
+            'price_per_night': data.get("price_per_night", place['price_per_night']),
+            'max_guests': data.get("max_guests", place['max_guests']),
+            'amenity_ids': data.get("amenity_ids", place['amenity_ids'])
+        })
+        data_manager.update(place)
+        return place
+
+    @place_ns.doc('delete_place')
+    def delete(self, place_id):
+        """Delete a place"""
+        place = data_manager.get(place_id, "Place")
+        if place is None:
+            api.abort(404, "Place not found")
+        data_manager.delete(place_id, "Place")
+        return '', 204
 
 # Review endpoints
-@app.route('/places/<place_id>/reviews', methods=['POST'])
-def create_review(place_id):
-    data = request.get_json()
-    user = data_manager.get(data.get('user_id'), 'User')
-    place = data_manager.get(place_id, 'Place')
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-    if not place:
-        return jsonify({"error": "Place not found"}), 404
+@review_ns.route('/places/<string:place_id>/reviews')
+class ReviewList(Resource):
+    @review_ns.doc('list_reviews')
+    @review_ns.marshal_list_with(review_model)
+    def get(self, place_id):
+        """List all reviews for a place"""
+        reviews = data_manager.get_all_reviews_by_place(place_id)
+        if not reviews:
+            api.abort(404, "No reviews found for this place")
+        return reviews
 
-    review = Review(review_id=data.get('review_id'), user=user, place=place,
-                    rating=data.get('rating'), comment=data.get('comment'))
-    data_manager.save(review)
-    return jsonify(review.to_dict()), 201
+    @review_ns.doc('create_review')
+    @review_ns.expect(review_model)
+    @review_ns.marshal_with(review_model, code=201)
+    def post(self, place_id):
+        """Create a new review for a place"""
+        data = api.payload
+        required_fields = ["user_id", "rating", "comment"]
+        if not all(field in data for field in required_fields):
+            api.abort(400, "Missing required fields")
 
-@app.route('/places/<place_id>/reviews', methods=['GET'])
-def get_reviews_for_place(place_id):
-    place = data_manager.get(place_id, 'Place')
-    if not place:
-        return jsonify({"error": "Place not found"}), 404
+        if not 1 <= data["rating"] <= 5:
+            api.abort(400, "Rating must be between 1 and 5")
 
-    reviews = [review for review in data_manager.storage.get('Review', {}).values() if review.place.id == place_id]
-    return jsonify([review.to_dict() for review in reviews]), 200
+        if data_manager.get(place_id, "Place") is None:
+            api.abort(404, "Place not found")
 
-@app.route('/users/<user_id>/reviews', methods=['GET'])
-def get_reviews_for_user(user_id):
-    user = data_manager.get(user_id, 'User')
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+        review = {
+            'id': str(uuid.uuid4()),
+            'place_id': place_id,
+            'user_id': data["user_id"],
+            'rating': data["rating"],
+            'comment': data["comment"],
+            'created_at': datetime.utcnow(),
+            'updated_at': datetime.utcnow()
+        }
+        data_manager.save(review)
+        return review, 201
 
-    reviews = [review for review in data_manager.storage.get('Review', {}).values() if review.user.id == user_id]
-    return jsonify([review.to_dict() for review in reviews]), 200
-
-@app.route('/reviews/<review_id>', methods=['GET'])
-def get_review(review_id):
-    review = data_manager.get(review_id, 'Review')
-    if not review:
-        return jsonify({"error": "Review not found"}), 404
-    return jsonify(review.to_dict()), 200
-
-@app.route('/reviews/<review_id>', methods=['PUT'])
-def update_review(review_id):
-    data = request.get_json()
-    review = data_manager.get(review_id, 'Review')
-    if not review:
-        return jsonify({"error": "Review not found"}), 404
-
-    review.rating = data.get('rating', review.rating)
-    review.comment = data.get('comment', review.comment)
-    data_manager.save(review)
-    return jsonify(review.to_dict()), 200
-
-@app.route('/reviews/<review_id>', methods=['DELETE'])
-def delete_review(review_id):
-    review = data_manager.get(review_id, 'Review')
-    if not review:
-        return jsonify({"error": "Review not found"}), 404
-
-    data_manager.delete(review_id, 'Review')
-    return '', 204
-
-# Amenity endpoints
-@app.route('/amenities', methods=['POST'])
-def create_amenity():
-    data = request.get_json()
-    amenity = Amenities(name=data.get('name'))
-    data_manager.save(amenity)
-    return jsonify(amenity.to_dict()), 201
-
-@app.route('/amenities', methods=['GET'])
-def get_amenities():
-    amenities = data_manager.storage.get('Amenities', {}).values()
-    return jsonify([amenity.to_dict() for amenity in amenities]), 200
-
-@app.route('/amenities/<amenity_id>', methods=['GET'])
-def get_amenity(amenity_id):
-    amenity = data_manager.get(amenity_id, 'Amenities')
-    if not amenity:
-        return jsonify({"error": "Amenity not found"}), 404
-    return jsonify(amenity.to_dict()), 200
-
-@app.route('/amenities/<amenity_id>', methods=['PUT'])
-def update_amenity(amenity_id):
-    data = request.get_json()
-    amenity = data_manager.get(amenity_id, 'Amenities')
-    if not amenity:
-        return jsonify({"error": "Amenity not found"}), 404
-
-    amenity.name = data.get('name', amenity.name)
-    data_manager.save(amenity)
-    return jsonify(amenity.to_dict()), 200
-
-@app.route('/amenities/<amenity_id>', methods=['DELETE'])
-def delete_amenity(amenity_id):
-    amenity = data_manager.get(amenity_id, 'Amenities')
-    if not amenity:
-        return jsonify({"error": "Amenity not found"}), 404
-
-    data_manager.delete(amenity_id, 'Amenities')
-    return '', 204
-
-# City and Country endpoints
-@app.route('/countries', methods=['GET'])
-def get_countries():
-    countries = data_manager.storage.get('Country', {}).values()
-    return jsonify([country.to_dict() for country in countries]), 200
-
-@app.route('/countries/<country_code>', methods=['GET'])
-def get_country(country_code):
-    country = next((country for country in data_manager.storage.get('Country', {}).values() if country.code == country_code), None)
-    if not country:
-        return jsonify({"error": "Country not found"}), 404
-    return jsonify(country.to_dict()), 200
-
-@app.route('/countries/<country_code>/cities', methods=['GET'])
-def get_cities_for_country(country_code):
-    country = next((country for country in data_manager.storage.get('Country', {}).values() if country.code == country_code), None)
-    if not country:
-        return jsonify({"error": "Country not found"}), 404
-
-    cities = [city for city in data_manager.storage.get('City', {}).values() if city.country_code == country_code]
-    return jsonify([city.to_dict() for city in cities]), 200
-
-@app.route('/cities', methods=['POST'])
-def create_city():
-    data = request.get_json()
-    country = next((country for country in data_manager.storage.get('Country', {}).values() if country.code == data.get('country_code')), None)
-    if not country:
-        return jsonify({"error": "Country not found"}), 404
-
-    city = City(name=data.get('name'), country_code=data.get('country_code'))
-    data_manager.save(city)
-    return jsonify(city.to_dict()), 201
-
-@app.route('/cities', methods=['GET'])
-def get_cities():
-    cities = data_manager.storage.get('City', {}).values()
-    return jsonify([city.to_dict() for city in cities]), 200
-
-@app.route('/cities/<city_id>', methods=['GET'])
-def get_city(city_id):
-    city = data_manager.get(city_id, 'City')
-    if not city:
-        return jsonify({"error": "City not found"}), 404
-    return jsonify(city.to_dict()), 200
-
-@app.route('/cities/<city_id>', methods=['PUT'])
-def update_city(city_id):
-    data = request.get_json()
-    city = data_manager.get(city_id, 'City')
-    if not city:
-        return jsonify({"error": "City not found"}), 404
-
-    city.name = data.get('name', city.name)
-    data_manager.save(city)
-    return jsonify(city.to_dict()), 200
-
-@app.route('/cities/<city_id>', methods=['DELETE'])
-def delete_city(city_id):
-    city = data_manager.get(city_id, 'City')
-    if not city:
-        return jsonify({"error": "City not found"}), 404
-
-    data_manager.delete(city_id, 'City')
-    return '', 204
+@review_ns.route('/users/<string:user_id>/reviews')
+class UserReviewList(Resource):
+    @review_ns.doc('list_user_reviews')
+    @review_ns.marshal_list_with(review_model)
+    def get(self, user_id):
+        """List all reviews by a user"""
+        reviews = data_manager.get_all_reviews_by_user(user_id)
+        if not reviews:
+            api.abort(404, "No reviews found for this user")
+        return reviews
 
 if __name__ == '__main__':
     app.run(debug=True)
