@@ -1,9 +1,9 @@
 #!/usr/bin/python3
-from models.city import City
-from models.country import Country
-from models.user import User
-from models.amenity import Amenity
-from models.place import Place
+from model.city import City
+from model.country import Country
+from model.user import User
+from model.amenity import Amenity
+from modl.place import Place
 
 class DataManager:
     def __init__(self):

@@ -1,7 +1,7 @@
 #!/usr/bin/python3
-from models.data_manager import DataManager
-from models.user import User
-from models.place import Place
+from model.data_manager import DataManager
+from model.user import User
+from model.place import Place
 
 def main():
     data_manager = DataManager()

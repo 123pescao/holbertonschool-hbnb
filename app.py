@@ -1,11 +1,11 @@
 #!/usr/bin/python3
 from flask import Flask, request, jsonify
-from models.data_manager import DataManager
-from models.user import User
-from models.review import Review
-from models.country import Country
-from models.city import City
-from models.place import Place
+from model.data_manager import DataManager
+from model.user import User
+from model.review import Review
+from model.country import Country
+from model.city import City
+from model.place import Place
 from flask_restx import Api, Resource, fields
 
 app = Flask(__name__)

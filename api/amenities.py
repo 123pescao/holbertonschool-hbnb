@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 from flask import Flask, request, jsonify, make_response
-from models.amenity import Amenity
+from model.amenity import Amenity
 from persistence.data_manager import DataManager
 
 app = Flask(__name__)
