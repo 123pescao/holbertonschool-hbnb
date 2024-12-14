@@ -1,14 +1,18 @@
 #!/usr/bin/python3
 """User Class"""
+import re
 import uuid
 from app import db, bcrypt
 from app.models.base_model import BaseModel
 
-class User(BaseModel, db.Model):
+#Validate email format
+regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
+
+
+class User(BaseModel):
     """User model for storing user data"""
     __tablename__ = 'users'
 
-    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
@@ -18,11 +22,21 @@ class User(BaseModel, db.Model):
     def __init__(self, first_name, last_name, email, password, is_admin=False):
         """Initialize a User with personal details and admin status."""
         super().__init__()
-        self.first_name = first_name
-        self.last_name = last_name
-        self.email = email
+        self.first_name = self._validate_name(first_name, "First")
+        self.last_name = self._validate_name(last_name, "Last")
+        self.email = self._validate_email(email)
         self.is_admin = is_admin
         self.hash_password(password)
+
+    def _validate_email(self, email):
+        if not re.fullmatch(regex, email):
+            raise ValueError("Invalid email format")
+        return email
+
+    def _validate_name(self, name, field_name):
+        if not 0 < len(name) <= 50:
+            raise ValueError(f"{field_name} name must be between 1 and 50 characters")
+        return name
 
     def hash_password(self, password):
         """Hashes the password before storing"""

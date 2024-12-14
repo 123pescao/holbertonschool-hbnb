@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 """Amenities endpoints"""
 from flask_restx import Namespace, Resource, fields
 from app.services import facade
@@ -16,6 +17,10 @@ class AmenityList(Resource):
     def post(self):
         """Create a new amenity"""
         amenity_data = api.payload
+
+        if 'name' not in amenity_data:
+            return {'error': 'Invalid input data'}, 400
+
         new_amenity = facade.create_amenity(amenity_data)
         return {
             'id': new_amenity.id,
@@ -26,11 +31,12 @@ class AmenityList(Resource):
     def get(self):
         """Retrieve a list of all amenities"""
         amenities = facade.get_all_amenities()
-        return [{'id': amenity.id, 'name': amenity.name}
-                for amenity in amenities
-                ], 200
+        return [{
+            'id': amenity.id,
+            'name': amenity.name
+        } for amenity in amenities], 200
 
-@api.route('/<string:amenity_id>')
+@api.route('/<amenity_id>')
 class Amenity(Resource):
     @api.response(200, 'Amenity details retrieved successfully')
     @api.response(404, 'Amenity not found')
@@ -48,11 +54,19 @@ class Amenity(Resource):
     def put(self, amenity_id):
         """Update a specific amenity"""
         amenity_data = api.payload
-        updated_amenity = facade.update_amenity(amenity_id, amenity_data)
-        if not updated_amenity:
-            return {'error': 'Amenity not found'}, 400
-        return {'message': 'Amenity updated successfully'}, 200
 
-    def delete(self, amenity_id):
-        """Delete a specific amenity"""
-        return {"message": f"Amenity {amenity_id} deleted"}
+        if not amenity_data.get('name'):
+            return {'error': 'Amenity name is required'}, 400
+
+        amenity = facade.get_amenity(amenity_id)
+        if not amenity:
+            return {'error': 'Amenity not found'}, 404
+
+        updated_amenity = facade.update_amenity(amenity_id, amenity_data)
+        return {
+            'message': 'Amenity updated successfully',
+            'amenity': {
+                'id': updated_amenity.id,
+                'name': updated_amenity.name
+            }
+        }, 200

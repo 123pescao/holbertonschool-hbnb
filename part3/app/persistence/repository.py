@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """Handle Object storage. CRUD operations"""
 from abc import ABC, abstractmethod
-from app.extensions import db  # Import db from extensions.py
+from app.extensions import db
 
 # Abstract Repository class
 class Repository(ABC):

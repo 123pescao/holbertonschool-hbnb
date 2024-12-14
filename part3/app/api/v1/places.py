@@ -1,6 +1,7 @@
 """Places endpoints"""
 from flask_restx import Namespace, Resource, fields
 from app.services import facade
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 api = Namespace('places', description='Place operations')
 
@@ -24,7 +25,7 @@ review_model = api.model('PlaceReview', {
     'user_id': fields.String(description='ID of the user')
 })
 
-# Define the place model with a list of reviews
+# Define the place model
 place_model = api.model('Place', {
     'title': fields.String(required=True, description='Title of the place'),
     'description': fields.String(description='Description of the place'),
@@ -32,14 +33,8 @@ place_model = api.model('Place', {
     'latitude': fields.Float(required=True, description='Latitude of the place'),
     'longitude': fields.Float(required=True, description='Longitude of the place'),
     'owner_id': fields.String(required=True, description='ID of the owner'),
-    'owner': fields.Nested(api.model('Owner', {
-        'id': fields.String(description='Owner ID'),
-        'first_name': fields.String(description='First name of the owner'),
-        'last_name': fields.String(description='Last name of the owner'),
-        'email': fields.String(description='Email of the owner')
-    }), description='Owner of the place'),
-    'amenities': fields.List(fields.String, description='List of amenities IDs'),
-    'reviews': fields.List(fields.Nested(review_model), description='List of reviews for the place')
+    'amenities': fields.List(fields.String, required=True, description="List of amenities ID's"),
+    'reviews': fields.List(fields.Nested(review_model), description="List of reviews")
 })
 
 @api.route('/')
@@ -47,8 +42,11 @@ class PlaceList(Resource):
     @api.expect(place_model)
     @api.response(201, 'Place successfully created')
     @api.response(400, 'Invalid input data')
+    @api.response(403, 'Unauthorized action')
+    @jwt_required()
     def post(self):
         """Register a new place"""
+        current_user = get_jwt_identity()
         place_data = api.payload
         try:
             new_place = facade.create_place(place_data)
@@ -76,7 +74,7 @@ class PlaceList(Resource):
             'longitude': place.longitude
         } for place in places], 200
 
-@api.route('/<string:place_id>')
+@api.route('/<place_id>')
 class PlaceResource(Resource):
     @api.response(200, 'Place details retrieved successfully')
     @api.response(404, 'Place not found')
@@ -97,10 +95,14 @@ class PlaceResource(Resource):
                 'last_name': place.owner.last_name,
                 'email': place.owner.email
             },
-            'amenities': [{'id': amenity.id, 'name': amenity.name} for amenity in place.amenities]
+            'amenities': [
+                {
+                    'id': amenity.id,
+                    'name': amenity.name
+                } for amenity in place.amenities]
         }, 200
 
-@api.route('/<string:place_id>/reviews')
+@api.route('/<place_id>/reviews')
 class PlaceReviewList(Resource):
     @api.response(200, 'List of reviews for the place retrieved successfully')
     @api.response(404, 'Place not found')
@@ -125,9 +127,15 @@ class PlaceReviewList(Resource):
     @api.response(200, 'Place updated successfully')
     @api.response(404, 'Place not found')
     @api.response(400, 'Invalid input data')
+    @jwt_required()
     def put(self, place_id):
         """Update a place's information"""
+        current_user = get_jwt_identity()
         place_data = api.payload
+
+        if place_data['owner_id'] != current_user:
+            return {'error': 'Unauthorized action'}, 403
+
         updated_place = facade.update_place(place_id, place_data)
         if not updated_place:
             return {'error': 'Place not found'}, 404
