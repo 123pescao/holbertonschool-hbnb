@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Property Details</title>
+    <link href="styles.css" rel="stylesheet">
+    <link rel="icon" href="assets/icon.png">
+</head>
+
+<body>
+    <header class="site-header">
+        <img class="brand-logo" alt="HBnB Logo" src="assets/logo.png">
+    </header>
+
+    <nav class="site-navigation">
+        <a href="index.html">Explore</a>
+        <a href="login.html" class="link-login" id="auth-link">Sign In</a>
+    </nav>
+
+    <main class="content-wrapper">
+        <section id="property-info">
+            <!-- Dynamic details will go here -->
+        </section>
+
+        <section id="reviews-container" class="user-reviews">
+            <h2>Guest Feedback</h2>
+            <div id="reviews-list">
+                <!-- Reviews content dynamically added here -->
+            </div>
+        </section>
+
+        <section id="write-review" class="new-review" style="display: none;">
+            <h2>Write a Review</h2>
+            <form id="review-submit-form" class="review-form">
+                <textarea name="feedback-text" placeholder="Share your thoughts..." required></textarea>
+                <select name="star-rating" required>
+                    <option value="">Rate the Stay</option>
+                    <option value="5">5 Stars</option>
+                    <option value="4">4 Stars</option>
+                    <option value="3">3 Stars</option>
+                    <option value="2">2 Stars</option>
+                    <option value="1">1 Star</option>
+                </select>
+                <button type="submit">Post Review</button>
+            </form>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <p>&copy; 2024 HBnB. All rights reserved.</p>
+    </footer>
+
+    <script src="scripts.js"></script>
+</body>
+
+</html>

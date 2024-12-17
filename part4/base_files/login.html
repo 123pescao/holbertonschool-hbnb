@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In - HBnB</title>
+    <link href="styles.css" rel="stylesheet">
+    <link rel="icon" href="assets/icon.png">
+</head>
+
+<body>
+    <header class="site-header">
+        <img class="brand-logo" alt="HBnB Logo" src="assets/logo.png">
+    </header>
+
+    <nav class="site-navigation">
+        <a href="index.html">Home</a>
+    </nav>
+
+    <main class="content-wrapper">
+        <form class="auth-form" id="signin-form">
+            <h1>Sign In</h1>
+            <div id="error-msg" class="error-display" style="display: none;"></div>
+            <label for="user-email">Email:</label>
+            <input type="email" id="user-email" name="user-email" required>
+
+            <label for="user-password">Password:</label>
+            <input type="password" id="user-password" name="user-password" required>
+
+            <button type="submit" id="signin-btn">Log In</button>
+        </form>
+    </main>
+
+    <footer class="site-footer">
+        <p>&copy; 2024 MHBnB All rights reserved.</p>
+    </footer>
+    <script src="scripts.js"></script>
+</body>
+
+</html>
